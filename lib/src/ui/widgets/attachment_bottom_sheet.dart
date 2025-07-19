@@ -3,7 +3,8 @@ import 'package:chatgpt_clone/src/ui/widgets/custom_list_tile.dart';
 import 'package:flutter/material.dart';
 
 class AttachmentBottomSheet extends StatelessWidget {
-  const AttachmentBottomSheet({super.key});
+  final VoidCallback onAttachmentTap;
+  const AttachmentBottomSheet({super.key, required this.onAttachmentTap});
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +24,9 @@ class AttachmentBottomSheet extends StatelessWidget {
               IconTile(
                 label: 'Photos',
                 svg: SVGs.photos(),
-                onTap: () {},
+                onTap: (){
+                  onAttachmentTap();
+                },
               ),
               IconTile(
                 label: 'Files',
@@ -67,24 +70,27 @@ class IconTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 100,
-      height: 80,
-      decoration: BoxDecoration(
-        color: const Color(0xFF2B2B2B),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          svg,
-          const SizedBox(height: 8),
-          Text(label,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600)),
-        ],
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 100,
+        height: 80,
+        decoration: BoxDecoration(
+          color: const Color(0xFF2B2B2B),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            svg,
+            const SizedBox(height: 8),
+            Text(label,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600)),
+          ],
+        ),
       ),
     );
   }
