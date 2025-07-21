@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/status.dart' as status;
+import 'package:http/http.dart' as http;
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -24,6 +25,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isTyping = false;
   bool _isConnected = false;
   File? _selectedImage;
+  String? _selectedImageUrl;
 
   @override
   void initState() {
@@ -86,37 +88,41 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _controller.text.trim();
     if ((text.isEmpty && _selectedImage == null) || !_isConnected) return;
 
-    // Add user's message locally
-    final newMsg = Message(role: Role.user, content: text);
+    // Upload image if exists
+    if (_selectedImage != null) {
+      _selectedImageUrl = await _uploadImage(_selectedImage!);
+      debugPrint('Image uploaded: $_selectedImageUrl');
+    }
+
+    final newMsg = Message(
+      role: Role.user,
+      content: text,
+      image: _selectedImageUrl,
+    );
     _addMessage(newMsg);
     _controller.clear();
 
-    try {
-      final bytes =
-      _selectedImage != null ? await _selectedImage!.readAsBytes() : null;
-      final base64Image = bytes != null ? base64Encode(bytes) : null;
+    final history = _messages.reversed
+        .where((msg) => msg.role != Role.system)
+        .map((msg) => {
+      'role': msg.role.name,
+      'content': msg.content,
+      if (msg.image != null) 'imageUrl': msg.image,
+    })
+        .toList();
 
-      // Prepare full history for backend
-      final history = _messages
-          .reversed // oldest first
-          .where((msg) => msg.role != Role.system) // ignoring system messages
-          .map((msg) => {
-        'role': msg.role.name,
-        'content': msg.content,
-      }).toList();
+    final payload = jsonEncode({
+      'prompt': text,
+      'imageUrl': _selectedImageUrl,
+      'history': history,
+    });
 
-      final payload = jsonEncode({
-        'prompt': text,
-        'history': history,
-        if (base64Image != null) 'image': base64Image,
-      });
+    _channel.sink.add(payload);
 
-      _channel.sink.add(payload);
-      setState(() => _selectedImage = null);
-    } catch (e) {
-      _addMessage(
-          Message(role: Role.system, content: 'Failed to send message.'));
-    }
+    setState(() {
+      _selectedImage = null;
+      _selectedImageUrl = null;
+    });
   }
 
 
@@ -136,6 +142,27 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     }
   }
+
+  Future<String?> _uploadImage(File image) async {
+    try {
+      final bytes = await image.readAsBytes();
+      final base64Img = base64Encode(bytes);
+
+      final response = await http.post(
+        Uri.parse('http://localhost:3000/api/upload-image'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'base64': base64Img}),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body)['url'];
+      }
+    } catch (e) {
+      debugPrint('Image upload failed: $e');
+    }
+    return null;
+  }
+
 
   @override
   void dispose() {
@@ -166,11 +193,11 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      if (isUser)
+                      if (isUser && msg.image != null)
                         ClipRRect(
                           borderRadius: BorderRadius.circular(16),
                           child: Image.network(
-                            'https://res.cloudinary.com/ddejxdbg1/image/upload/v1752927539/chat-images/aflrwybtckspxa0bvnzf.jpg',
+                            msg.image ?? "",
                             width: MediaQuery.of(context).size.width * 0.65,
                             fit: BoxFit.cover,
                           ),
