@@ -8,9 +8,9 @@ An exact replica of the official ChatGPT mobile app built with Flutter. Includes
 ✅ Exact pixel-perfect UI  
 ✅ Full support for conversational chat streaming  
 ✅ Image input support  
+✅ Stores previous chats in MongoDB  
+✅ Custom proxy server to securely handle OpenAI requests  
 ✅ Typing effects and animations  
-✅ Custom proxy server to securely handle OpenAI requests
-✅ Stores previous chats in MongoDB
 
 ---
 
