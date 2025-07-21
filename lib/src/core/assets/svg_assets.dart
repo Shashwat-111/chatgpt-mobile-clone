@@ -61,18 +61,18 @@ class SVGs {
   static Widget search({double size = 5}) =>
       icon(AppIcons.search, size: size, label: 'search');
 
-  static Widget copy({double size = 20}) =>
+  static Widget copy({double size = 16}) =>
       icon(AppIcons.copy, size: size, label: 'copy');
 
-  static Widget like({double size = 20}) =>
+  static Widget like({double size = 16}) =>
       icon(AppIcons.like, size: size, label: 'like');
 
-  static Widget dislike({double size = 20}) =>
+  static Widget dislike({double size = 16}) =>
       icon(AppIcons.dislike, size: size, label: 'dislike');
 
-  static Widget volume({double size = 20}) =>
+  static Widget volume({double size = 16}) =>
       icon(AppIcons.volume, size: size, label: 'volume');
 
-  static Widget resend({double size = 20}) =>
+  static Widget resend({double size = 16}) =>
       icon(AppIcons.resend, size: size, label: 'resend');
 }

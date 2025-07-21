@@ -1,6 +1,10 @@
+import 'dart:convert';
+import 'package:chatgpt_clone/main.dart';
 import 'package:chatgpt_clone/src/core/assets/svg_assets.dart';
+import 'package:chatgpt_clone/src/models/message.dart';
 import 'package:chatgpt_clone/src/ui/widgets/custom_list_tile.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 class MyDrawer extends StatefulWidget {
   const MyDrawer({super.key});
@@ -30,7 +34,12 @@ class _MyDrawerState extends State<MyDrawer> {
             CustomListTile(
               svg: SVGs.edit(),
               label: "New Chat",
-              onTap: () {},
+              onTap: () {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MyApp()),
+                );
+              },
             ),
             CustomListTile(
               svg: SVGs.photos(),
@@ -49,15 +58,45 @@ class _MyDrawerState extends State<MyDrawer> {
             ),
             const SizedBox(height: 16),
             Expanded(
-              child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: 5,
-                  itemBuilder: (context, index) {
-                    return ListTile(
-                      onTap: (){},
-                      title: Text("Chat ${index + 1}", style: const TextStyle(color: Colors.white),),
+              child: FutureBuilder<List<ChatPreview>>(
+                future: fetchChats(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  } else if (snapshot.hasError) {
+                    debugPrint(snapshot.error.toString());
+                    return Center(child: Text('Unable to load past conversations\nServer is Unrechable.'));
+                  } else {
+                    final chats = snapshot.data!;
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: chats.length,
+                      itemBuilder: (context, index) {
+                        final chat = chats[index];
+                        return ListTile(
+                            onTap: () async {
+                              final response = await http.get(
+                                Uri.parse('http://10.0.2.2:3000/api/chats/${chat.id}'),
+                              );
+
+                              if (response.statusCode == 200) {
+                                final json = jsonDecode(response.body);
+                                final fullChat = Chat.fromJson(json);
+
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => MyApp(existingChat: fullChat)),
+                                );
+                              }
+                            },
+                            title: Text(chat.title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                        );
+                      },
                     );
-                  }),
+                  }
+                },
+              )
+              ,
             ),
             ListTile(
               leading:
@@ -106,5 +145,15 @@ class SearchField extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+Future<List<ChatPreview>> fetchChats() async {
+  final response = await http.get(Uri.parse('http://10.0.2.2:3000/api/chats'));
+  if (response.statusCode == 200) {
+    final data = jsonDecode(response.body) as List;
+    return data.map((json) => ChatPreview.fromJson(json)).toList();
+  } else {
+    throw Exception('Failed to fetch chats');
   }
 }

@@ -11,7 +11,9 @@ import 'package:web_socket_channel/status.dart' as status;
 import 'package:http/http.dart' as http;
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  final Chat? existingChat;
+
+  const ChatScreen({super.key, this.existingChat});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -20,6 +22,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  String? _chatId;
   final List<Message> _messages = [];
   late WebSocketChannel _channel;
   bool _isTyping = false;
@@ -30,48 +33,74 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+
+    if (widget.existingChat != null) {
+      _chatId = widget.existingChat!.id;
+      _messages.addAll(widget.existingChat!.messages.reversed);
+    }
+
     _connectSocket();
   }
 
   void _connectSocket() {
-    _channel = WebSocketChannel.connect(Uri.parse('ws://localhost:3000'));
+    http://10.0.2.2:3000
+    _channel = WebSocketChannel.connect(Uri.parse('ws://10.0.2.2:3000'));
 
     _channel.stream.listen(
-      (data) {
+          (data) {
         if (data == '[END]') {
           _isTyping = false;
+
           if (_messages.isNotEmpty && _messages.first.role == Role.assistant) {
             setState(() {
               _messages.first.isComplete = true;
             });
           }
-        } else if (data == '[ERROR]') {
-          _addMessage(
-            Message(role: Role.system, content: 'Something went wrong.'),
-          );
         } else {
-          if (_messages.isNotEmpty &&
-              _messages.first.role == Role.assistant &&
-              _isTyping) {
-            _messages.first.content += data;
-          } else {
-            _messages.insert(
-              0,
-              Message(role: Role.assistant, content: data, isComplete: false),
-            );
-            _isTyping = true;
+          try {
+            // Try to decode JSON (could be {"chatId": "..."} or future metadata)
+            final json = jsonDecode(data);
+            if (json['chatId'] != null) {
+              _chatId = json['chatId'];
+            }
+          } catch (_) {
+            // Not JSON → must be a streamed token
+            if (_messages.isNotEmpty &&
+                _messages.first.role == Role.assistant &&
+                _isTyping) {
+              _messages.first.content += data;
+            } else {
+              _messages.insert(
+                0,
+                Message(
+                  role: Role.assistant,
+                  content: data,
+                  isComplete: false,
+                ),
+              );
+              _isTyping = true;
+            }
+            setState(() {});
           }
-          setState(() {});
         }
       },
-      onDone: () {
-        _isConnected = false;
-        debugPrint('Socket closed');
-      },
       onError: (error) {
-        _addMessage(
-          Message(role: Role.system, content: 'Socket error: $error'),
-        );
+        debugPrint("WebSocket error: $error");
+        _isConnected = false;
+        if (!mounted) return;
+        setState(() {
+          _messages.insert(
+            0,
+            Message(
+              role: Role.system,
+              content: "⚠️ Connection error. Please retry.",
+            ),
+          );
+        });
+      },
+      onDone: () {
+        debugPrint("WebSocket connection closed");
+        _isConnected = false;
       },
     );
 
@@ -115,6 +144,7 @@ class _ChatScreenState extends State<ChatScreen> {
       'prompt': text,
       'imageUrl': _selectedImageUrl,
       'history': history,
+      'chatId': _chatId,
     });
 
     _channel.sink.add(payload);
@@ -149,7 +179,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final base64Img = base64Encode(bytes);
 
       final response = await http.post(
-        Uri.parse('http://localhost:3000/api/upload-image'),
+        Uri.parse('http://10.0.2.2:3000/api/upload-image'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'base64': base64Img}),
       );
@@ -168,102 +198,104 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     _controller.dispose();
     _scrollController.dispose();
-    _channel.sink.close(status.goingAway);
+    _channel.sink.close(1000);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              reverse: true,
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.all(12),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final msg = _messages[index];
-                final isUser = msg.role == Role.user;
-                return Align(
-                  alignment:
-                      isUser ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      if (isUser && msg.image != null)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: Image.network(
-                            msg.image ?? "",
-                            width: MediaQuery.of(context).size.width * 0.65,
-                            fit: BoxFit.cover,
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                reverse: true,
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.all(12),
+                itemCount: _messages.length,
+                itemBuilder: (context, index) {
+                  final msg = _messages[index];
+                  final isUser = msg.role == Role.user;
+                  return Align(
+                    alignment:
+                        isUser ? Alignment.centerRight : Alignment.centerLeft,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        if (isUser && msg.image != null)
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.network(
+                              msg.image ?? "",
+                              width: MediaQuery.of(context).size.width * 0.65,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        Container(
+                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          padding: const EdgeInsets.all(12),
+                          constraints: BoxConstraints(
+                            maxWidth: isUser
+                                ? MediaQuery.of(context).size.width * 0.75
+                                : MediaQuery.of(context).size.width * 0.85,
+                          ),
+                          decoration: BoxDecoration(
+                            color:
+                                isUser ? const Color(0xFF2B2B2B) : Colors.transparent,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                msg.content,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              if (!isUser) const SizedBox(height: 12),
+                              if (!isUser)
+                                AnimatedOpacity(
+                                  opacity: widget.existingChat != null
+                                      ? 1
+                                      : msg.isComplete ? 1.0 : 0.0,
+                                  duration: const Duration(milliseconds: 600),
+                                  curve: Curves.easeIn,
+                                  child: Row(
+                                    children: [
+                                      SVGs.copy(),
+                                      const SizedBox(width: 12),
+                                      SVGs.like(),
+                                      const SizedBox(width: 12),
+                                      SVGs.dislike(),
+                                      const SizedBox(width: 12),
+                                      SVGs.volume(),
+                                      const SizedBox(width: 12),
+                                      SVGs.resend()
+                                    ],
+                                  ),
+                                )
+                            ],
                           ),
                         ),
-                      Container(
-                        margin: const EdgeInsets.symmetric(vertical: 6),
-                        padding: const EdgeInsets.all(12),
-                        constraints: BoxConstraints(
-                          maxWidth: isUser
-                              ? MediaQuery.of(context).size.width * 0.75
-                              : MediaQuery.of(context).size.width * 0.85,
-                        ),
-                        decoration: BoxDecoration(
-                          color:
-                              isUser ? const Color(0xFF2B2B2B) : Colors.transparent,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              msg.content,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            if (!isUser) const SizedBox(height: 12),
-                            if (!isUser)
-                              AnimatedOpacity(
-                                opacity: msg.isComplete ? 1.0 : 0.0,
-                                duration: const Duration(milliseconds: 600),
-                                curve: Curves.easeIn,
-                                child: Row(
-                                  children: [
-                                    SVGs.copy(),
-                                    const SizedBox(width: 12),
-                                    SVGs.like(),
-                                    const SizedBox(width: 12),
-                                    SVGs.dislike(),
-                                    const SizedBox(width: 12),
-                                    SVGs.volume(),
-                                    const SizedBox(width: 12),
-                                    SVGs.resend()
-                                  ],
-                                ),
-                              )
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
-          ChatInputField(
-            controller: _controller,
-            onSend: _sendMessage,
-            onImageTap: _pickImage,
-            selectedImage: _selectedImage,
-            onRemoveImage: () => setState(() => _selectedImage = null),
-          ),
-        ],
-      ),
-    );
+            ChatInputField(
+              controller: _controller,
+              onSend: _sendMessage,
+              onImageTap: _pickImage,
+              selectedImage: _selectedImage,
+              onRemoveImage: () => setState(() => _selectedImage = null),
+            ),
+          ],
+        ),
+      );
   }
 }
