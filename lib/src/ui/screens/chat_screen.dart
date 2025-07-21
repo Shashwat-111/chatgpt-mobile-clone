@@ -1,14 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:chatgpt_clone/src/core/assets/svg_assets.dart';
+import 'package:chatgpt_clone/src/core/constants/constants.dart';
+import 'package:chatgpt_clone/src/core/network/api_service.dart';
+import 'package:chatgpt_clone/src/models/chat.dart';
 import 'package:chatgpt_clone/src/models/message.dart';
 import 'package:chatgpt_clone/src/ui/widgets/chat_input_field.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:web_socket_channel/status.dart' as status;
-import 'package:http/http.dart' as http;
+
 
 class ChatScreen extends StatefulWidget {
   final Chat? existingChat;
@@ -43,8 +44,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _connectSocket() {
-    http://10.0.2.2:3000
-    _channel = WebSocketChannel.connect(Uri.parse('ws://10.0.2.2:3000'));
+    _channel = WebSocketChannel.connect(Uri.parse(wsBaseUrl));
 
     _channel.stream.listen(
           (data) {
@@ -58,13 +58,11 @@ class _ChatScreenState extends State<ChatScreen> {
           }
         } else {
           try {
-            // Try to decode JSON (could be {"chatId": "..."} or future metadata)
             final json = jsonDecode(data);
             if (json['chatId'] != null) {
               _chatId = json['chatId'];
             }
           } catch (_) {
-            // Not JSON → must be a streamed token
             if (_messages.isNotEmpty &&
                 _messages.first.role == Role.assistant &&
                 _isTyping) {
@@ -119,7 +117,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     // Upload image if exists
     if (_selectedImage != null) {
-      _selectedImageUrl = await _uploadImage(_selectedImage!);
+      _selectedImageUrl = await ApiService.uploadImage(_selectedImage!);
       debugPrint('Image uploaded: $_selectedImageUrl');
     }
 
@@ -172,27 +170,6 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     }
   }
-
-  Future<String?> _uploadImage(File image) async {
-    try {
-      final bytes = await image.readAsBytes();
-      final base64Img = base64Encode(bytes);
-
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2:3000/api/upload-image'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'base64': base64Img}),
-      );
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body)['url'];
-      }
-    } catch (e) {
-      debugPrint('Image upload failed: $e');
-    }
-    return null;
-  }
-
 
   @override
   void dispose() {

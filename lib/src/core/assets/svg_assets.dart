@@ -28,7 +28,7 @@ class SVGs {
   static Widget folder({double size = 20}) =>
       icon(AppIcons.folder, size: size, label: 'folder');
 
-  static Widget menu({double size = 20}) =>
+  static Widget menu({double size = 12}) =>
       icon(AppIcons.menu, size: size, label: 'menu');
 
   static Widget mic({double size = 20}) =>

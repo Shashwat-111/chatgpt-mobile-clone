@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+
+///the Animated loading circle that is shon when LLM is thinking.
 class LoadingBubble extends StatefulWidget {
   const LoadingBubble({super.key});
 

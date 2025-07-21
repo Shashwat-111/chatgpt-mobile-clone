@@ -1,5 +1,4 @@
 import 'dart:io';
-
 import 'package:chatgpt_clone/src/core/assets/svg_assets.dart';
 import 'package:chatgpt_clone/src/ui/widgets/attachment_bottom_sheet.dart';
 import 'package:flutter/material.dart';
